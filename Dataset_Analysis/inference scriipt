@@ -1,0 +1,23 @@
+from transformers import pipeline
+
+model_path = "./legal_bert_final"
+
+my_ner = pipeline(
+    "token-classification",
+    model=model_path,
+    tokenizer=model_path,
+    aggregation_strategy="simple"
+)
+
+def redact_text(text):#
+    entities = my_ner(text)
+    entities = sorted(entities, key=lambda x: x['start'], reverse=True)
+
+    for item in entities:
+        if item['entity_group'] in ["PER", "LOC", "ORG"]:
+            start = item['start']
+            end = item['end']
+            # Заменяем имя на [REDACTED]
+            text = text[:start] + "[REDACTED]" + text[end:]
+
+    return text
