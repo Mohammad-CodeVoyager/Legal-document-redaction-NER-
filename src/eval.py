@@ -41,7 +41,7 @@ def main():
     trainer = Trainer(
         model=model,
         args=eval_args,
-        eval_dataset=test_ds,
+        eval_dataset= val_ds,
         tokenizer=tokenizer,
         data_collator=collator,
         compute_metrics=compute_metrics,

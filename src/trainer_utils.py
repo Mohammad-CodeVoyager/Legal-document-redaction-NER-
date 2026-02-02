@@ -49,7 +49,7 @@ def build_training_args(cfg: Dict[str, Any]) -> TrainingArguments:
     try:
         return TrainingArguments(
             **base_kwargs,
-            evaluation_strategy=eval_value,
+            eval_strategy=eval_value,
             save_strategy=save_value,
             logging_strategy=log_value,
         )
