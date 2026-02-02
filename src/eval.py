@@ -46,6 +46,11 @@ def main():
     )
 
     metrics = trainer.evaluate()
+    out_path = os.path.join(cfg["project"]["output_dir"], "test_metrics.json")
+    with open(out_path, "w") as f:
+        json.dump(metrics, f, indent=2)
+    print(f"✅ Saved test metrics to: {out_path}")
+    
     print("\n Test metrics:")
     for k, v in metrics.items():
         print(f"{k}: {v}")
