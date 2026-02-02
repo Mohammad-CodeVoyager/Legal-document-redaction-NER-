@@ -1,10 +1,10 @@
 import os
 from typing import Any, Dict, List, Tuple
 
-from datasets import Dataset, load_dataset
+from datasets import DatasetDict, load_dataset
 from transformers import AutoTokenizer
 
-from utils import build_bio_labels, normalize_mentions, spans_to_bio_label_ids
+from utils import build_bio_labels, normalize_mentions, spans_to_bio_labels_for_offsets
 
 
 def build_tokenizer_and_labels(cfg: Dict[str, Any]):
@@ -83,7 +83,7 @@ def tokenize_and_align_labels(ds, cfg: Dict[str, Any], tokenizer, label2id: Dict
             for input_ids, attn, offsets in zip(
                 enc["input_ids"], enc["attention_mask"], enc["offset_mapping"]
             ):
-                labels = spans_to_bio_label_ids(
+                labels = spans_to_bio_labels_for_offsets(
                     offsets=offsets,
                     mentions=norm_mentions,
                     label2id=label2id,
