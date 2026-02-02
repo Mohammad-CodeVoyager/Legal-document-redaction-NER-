@@ -96,7 +96,7 @@ def main():
         per_device_eval_batch_size=int(t["per_device_eval_batch_size"]),
         gradient_accumulation_steps=int(t.get("gradient_accumulation_steps", 1)),
 
-        evaluation_strategy=str(t["evaluation_strategy"]),
+        eval_strategy=str(t["evaluation_strategy"]),
         eval_steps=int(t["eval_steps"]),
 
         save_strategy=str(t["save_strategy"]),
