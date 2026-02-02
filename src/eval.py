@@ -42,7 +42,7 @@ def main():
         model=model,
         args=eval_args,
         eval_dataset= val_ds,
-        tokenizer=tokenizer,
+        #tokenizer=tokenizer,
         data_collator=collator,
         compute_metrics=compute_metrics,
     )
