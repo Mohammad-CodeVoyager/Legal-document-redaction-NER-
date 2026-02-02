@@ -80,7 +80,7 @@ def tokenize_and_align_labels(ds, cfg: Dict[str, Any], tokenizer, label2id: Dict
                     offsets=offsets,
                     mentions=norm_mentions,
                     label2id=label2id,
-                    allowed_types=allowed_types,
+                    allowed_entity_types=allowed_types,
                 )
                 out_input_ids.append(input_ids)
                 out_attention.append(attn)
