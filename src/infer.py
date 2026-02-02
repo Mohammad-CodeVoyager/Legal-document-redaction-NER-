@@ -12,24 +12,17 @@ def load_cfg(path: str) -> Dict[str, Any]:
 
 
 def _merge_overlapping_spans(spans: List[Tuple[int, int, str]]) -> List[Tuple[int, int, str]]:
-    """
-    Merge overlapping/adjacent spans of the same label.
-    Input spans: (start, end, label) with character offsets.
-    """
     if not spans:
         return []
-    spans = sorted(spans, key=lambda x: (x[2], x[0], x[1]))  # group by label then position
-
+    spans = sorted(spans, key=lambda x: (x[2], x[0], x[1]))
     merged: List[Tuple[int, int, str]] = []
     cur_s, cur_e, cur_lab = spans[0]
-
     for s, e, lab in spans[1:]:
-        if lab == cur_lab and s <= cur_e:  # overlap or touch
+        if lab == cur_lab and s <= cur_e:
             cur_e = max(cur_e, e)
         else:
             merged.append((cur_s, cur_e, cur_lab))
             cur_s, cur_e, cur_lab = s, e, lab
-
     merged.append((cur_s, cur_e, cur_lab))
     return merged
 
@@ -39,10 +32,6 @@ def _labels_to_spans(
     pred_label_ids: List[int],
     id2label: Dict[int, str],
 ) -> List[Tuple[int, int, str]]:
-    """
-    Convert token-level predictions to entity spans (char offsets).
-    Uses BIO tags: B-XXX / I-XXX / O.
-    """
     spans: List[Tuple[int, int, str]] = []
     cur_start = None
     cur_end = None
@@ -56,25 +45,17 @@ def _labels_to_spans(
 
     for (s, e), pid in zip(offsets, pred_label_ids):
         if s == e:
-            continue  # special tokens
-
-        tag = id2label[int(pid)]
-        if tag == "O":
-            close_entity()
             continue
-
-        # tag like "B-PERSON" or "I-ORG"
-        if "-" not in tag:
+        tag = id2label[int(pid)]
+        if tag == "O" or "-" not in tag:
             close_entity()
             continue
 
         prefix, ent_type = tag.split("-", 1)
-
         if prefix == "B":
             close_entity()
             cur_start, cur_end, cur_type = s, e, ent_type
         elif prefix == "I":
-            # continue only if same type; otherwise start new entity
             if cur_type == ent_type and cur_start is not None:
                 cur_end = e
             else:
@@ -88,27 +69,16 @@ def _labels_to_spans(
 
 
 def redact_text(text: str, spans: List[Tuple[int, int, str]], style: str = "type") -> str:
-    """
-    Replace entity spans in text with placeholders.
-    style="type" -> [PERSON], [ORG], etc.
-    """
     if not spans:
         return text
-
-    # Sort by start; apply from left to right
     spans_sorted = sorted(spans, key=lambda x: (x[0], x[1]))
-
     out = []
     last = 0
     for s, e, t in spans_sorted:
         if s < last:
-            # overlapping span already handled; skip
             continue
         out.append(text[last:s])
-        if style == "type":
-            out.append(f"[{t}]")
-        else:
-            out.append("[REDACTED]")
+        out.append(f"[{t}]" if style == "type" else "[REDACTED]")
         last = e
     out.append(text[last:])
     return "".join(out)
@@ -122,10 +92,8 @@ def predict(
     max_length: int,
     stride: int,
     device: str,
+    score_threshold: float = 0.0,
 ) -> List[Tuple[int, int, str]]:
-    """
-    Run chunked inference and return merged spans (start, end, type).
-    """
     enc = tokenizer(
         text,
         return_offsets_mapping=True,
@@ -137,6 +105,7 @@ def predict(
     )
 
     id2label = model.config.id2label
+    o_id = model.config.label2id.get("O", 0)
 
     all_spans: List[Tuple[int, int, str]] = []
 
@@ -145,33 +114,36 @@ def predict(
         attn_t = torch.tensor([attn], device=device)
 
         logits = model(input_ids=input_ids_t, attention_mask=attn_t).logits[0]
-        pred_ids = torch.argmax(logits, dim=-1).tolist()
+        probs = torch.softmax(logits, dim=-1)
+        conf, pred_ids = torch.max(probs, dim=-1)
 
-        spans = _labels_to_spans(offsets, pred_ids, id2label)
+        pred_ids = pred_ids.tolist()
+        conf = conf.tolist()
+
+        filtered = [(pid if c >= score_threshold else o_id) for pid, c in zip(pred_ids, conf)]
+        spans = _labels_to_spans(offsets, filtered, id2label)
         all_spans.extend(spans)
 
-    # Merge duplicates caused by overlapping chunks
-    all_spans = _merge_overlapping_spans(all_spans)
-    return all_spans
+    return _merge_overlapping_spans(all_spans)
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/training_config.yaml")
-    ap.add_argument("--model_dir", default=None, help="Defaults to project.output_dir from config.")
+    ap.add_argument("--model_dir", default=None)
     ap.add_argument("--text", required=True)
-    ap.add_argument("--redact", action="store_true", help="Print redacted text output.")
+    ap.add_argument("--redact", action="store_true")
     args = ap.parse_args()
 
     cfg = load_cfg(args.config)
     model_dir = args.model_dir or cfg["project"]["output_dir"]
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
     tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=True)
     model = AutoModelForTokenClassification.from_pretrained(model_dir).to(device)
     model.eval()
 
+    score_threshold = float(cfg.get("inference", {}).get("score_threshold", 0.0))
     spans = predict(
         text=args.text,
         tokenizer=tokenizer,
@@ -179,6 +151,7 @@ def main():
         max_length=int(cfg["model"]["max_length"]),
         stride=int(cfg["model"]["stride"]),
         device=device,
+        score_threshold=score_threshold,
     )
 
     print("\n Predicted entity spans:")
@@ -187,9 +160,8 @@ def main():
 
     if args.redact:
         style = cfg.get("inference", {}).get("placeholder_style", "type")
-        redacted = redact_text(args.text, spans, style=style)
         print("\n Redacted text:")
-        print(redacted)
+        print(redact_text(args.text, spans, style=style))
 
 
 if __name__ == "__main__":

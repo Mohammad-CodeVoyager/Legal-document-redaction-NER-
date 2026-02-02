@@ -123,3 +123,37 @@ def spans_to_bio_labels_for_offsets(
         prev_in_span = True
 
     return labels
+
+def build_seqeval_metrics(label_list):
+    """
+    Returns compute_metrics callable for HF Trainer using seqeval via evaluate.
+    Requires: evaluate + seqeval installed.
+    """
+    import evaluate
+    seqeval = evaluate.load("seqeval")
+    id2label = {i: l for i, l in enumerate(label_list)}
+
+    def compute_metrics(p):
+        preds = np.argmax(p.predictions, axis=-1)
+        labels = p.label_ids
+
+        true_preds, true_labels = [], []
+        for pred_seq, lab_seq in zip(preds, labels):
+            cur_p, cur_l = [], []
+            for pred_id, lab_id in zip(pred_seq, lab_seq):
+                if lab_id == -100:
+                    continue
+                cur_p.append(id2label[int(pred_id)])
+                cur_l.append(id2label[int(lab_id)])
+            true_preds.append(cur_p)
+            true_labels.append(cur_l)
+
+        m = seqeval.compute(predictions=true_preds, references=true_labels)
+        return {
+            "precision": m.get("overall_precision", 0.0),
+            "recall": m.get("overall_recall", 0.0),
+            "f1": m.get("overall_f1", 0.0),
+            "accuracy": m.get("overall_accuracy", 0.0),
+        }
+
+    return compute_metrics

@@ -57,7 +57,20 @@ training:
   bf16: false
 
   dataloader_num_workers: 2
-  report_to: []
+  report_to: ["tensorboard"]
+
+metrics:
+  name: "seqeval"
+  enabled: true
+
+eval_run:
+  output_dir: "outputs/_eval_tmp"
+  per_device_eval_batch_size: 8
+
+early_stopping:
+  enabled: true
+  patience: 2
+  threshold: 0.0
 
 evaluation:
   metric: "seqeval"
