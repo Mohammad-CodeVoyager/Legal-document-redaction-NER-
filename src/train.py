@@ -10,7 +10,7 @@ from transformers import (
 )
 
 from utils import set_seed, build_seqeval_metrics
-from data_loader import prepare_datasets
+from dataloader import prepare_datasets
 from trainer_utils import build_training_args
 
 

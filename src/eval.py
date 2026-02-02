@@ -8,7 +8,7 @@ from transformers import (
     Trainer,
 )
 
-from data_loader import prepare_datasets
+from dataloader import prepare_datasets
 from trainer_utils import build_eval_args
 from utils import build_seqeval_metrics
 
