@@ -21,14 +21,7 @@ def build_tokenizer_and_labels(cfg: Dict[str, Any]):
 
 
 def load_local_splits(cfg: Dict[str, Any]) -> DatasetDict:
-    """
-    Case A:
-      data/train.json
-      data/dev.json
-      data/test.json
-
-    These file names can be configured in configs/training_config.yaml.
-    """
+ 
     data_cfg = cfg["data"]
     data_dir = os.path.abspath(data_cfg["local_data_dir"])
 

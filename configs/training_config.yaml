@@ -12,7 +12,7 @@ model:
 data:
   local_data_dir: "data"
   train_file: "train.json"
-  val_file: "dev.json"
+  val_file: "validation.json"
   test_file: "test.json"
 
   # fields inside each JSON record
