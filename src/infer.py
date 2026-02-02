@@ -1,4 +1,6 @@
 import argparse
+import os
+import json
 from typing import Any, Dict, List, Tuple
 
 import yaml
@@ -46,6 +48,7 @@ def _labels_to_spans(
     for (s, e), pid in zip(offsets, pred_label_ids):
         if s == e:
             continue
+
         tag = id2label[int(pid)]
         if tag == "O" or "-" not in tag:
             close_entity()
@@ -130,38 +133,67 @@ def predict(
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/training_config.yaml")
-    ap.add_argument("--model_dir", default=None)
-    ap.add_argument("--text", required=True)
-    ap.add_argument("--redact", action="store_true")
+    ap.add_argument("--out", default="outputs/test_preds.jsonl")
     args = ap.parse_args()
 
     cfg = load_cfg(args.config)
-    model_dir = args.model_dir or cfg["project"]["output_dir"]
 
+    # Paths from YAML
+    data_dir = cfg["data"]["local_data_dir"]
+    test_file = cfg["data"]["test_file"]
+    test_path = os.path.join(data_dir, test_file)
+
+    if not os.path.exists(test_path):
+        raise FileNotFoundError(f"Missing test file: {test_path}")
+
+    # Read test.json
+    with open(test_path, "r", encoding="utf-8") as f:
+        rows = json.load(f)
+    if not isinstance(rows, list):
+        raise ValueError("test.json must be a JSON list of records.")
+
+    text_field = cfg["data"]["text_field"]
+
+    # Load trained model
+    model_dir = cfg["project"]["output_dir"]
     device = "cuda" if torch.cuda.is_available() else "cpu"
     tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=True)
     model = AutoModelForTokenClassification.from_pretrained(model_dir).to(device)
     model.eval()
 
+    max_length = int(cfg["model"]["max_length"])
+    stride = int(cfg["model"]["stride"])
     score_threshold = float(cfg.get("inference", {}).get("score_threshold", 0.0))
-    spans = predict(
-        text=args.text,
-        tokenizer=tokenizer,
-        model=model,
-        max_length=int(cfg["model"]["max_length"]),
-        stride=int(cfg["model"]["stride"]),
-        device=device,
-        score_threshold=score_threshold,
-    )
+    style = cfg.get("inference", {}).get("placeholder_style", "type")
 
-    print("\n Predicted entity spans:")
-    for s, e, t in spans:
-        print(f"{t:10s}  [{s},{e})  '{args.text[s:e]}'")
+    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
 
-    if args.redact:
-        style = cfg.get("inference", {}).get("placeholder_style", "type")
-        print("\n Redacted text:")
-        print(redact_text(args.text, spans, style=style))
+    # Run inference + write JSONL
+    with open(args.out, "w", encoding="utf-8") as w:
+        for i, r in enumerate(rows):
+            text = r.get(text_field, "")
+            if not isinstance(text, str):
+                text = str(text)
+
+            spans = predict(
+                text=text,
+                tokenizer=tokenizer,
+                model=model,
+                max_length=max_length,
+                stride=stride,
+                device=device,
+                score_threshold=score_threshold,
+            )
+
+            rec = {
+                "id": i,
+                "text": text,
+                "pred_spans": [{"start": s, "end": e, "type": t} for s, e, t in spans],
+                "redacted_text": redact_text(text, spans, style=style),
+            }
+            w.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+    print(f"Done. Wrote {len(rows)} predictions to: {args.out}")
 
 
 if __name__ == "__main__":

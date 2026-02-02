@@ -29,7 +29,7 @@ def main():
     cfg = load_cfg(args.config)
     model_dir = args.model_dir or cfg["project"]["output_dir"]
 
-    tokenizer, label_list, _, _, _, _, test_ds = prepare_datasets(cfg)
+    tokenizer, label_list, _, _, _, val_ds, _ = prepare_datasets(cfg)
 
     model = AutoModelForTokenClassification.from_pretrained(model_dir)
     eval_args = build_eval_args(cfg)
