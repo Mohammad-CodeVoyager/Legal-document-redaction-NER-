@@ -148,9 +148,36 @@ def main():
 
     # Read test.json
     with open(test_path, "r", encoding="utf-8") as f:
-        rows = json.load(f)
-    if not isinstance(rows, list):
-        raise ValueError("test.json must be a JSON list of records.")
+        first_nonempty = ""
+        while True:
+            pos = f.tell()
+            line = f.readline()
+            if not line:  # EOF
+                break
+            if line.strip():
+                first_nonempty = line.strip()
+                f.seek(pos)
+                break
+
+        if not first_nonempty:
+            raise ValueError(f"{test_path} is empty.")
+
+        if first_nonempty.startswith("["):
+        # Standard JSON array
+            rows = json.load(f)
+            if not isinstance(rows, list):
+                raise ValueError("JSON array must contain a list of records.")
+        else:
+        # JSON Lines (one JSON object per line)
+            rows = []
+            for ln, line in enumerate(f, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Invalid JSON on line {ln} of {test_path}: {e}") from e
 
     text_field = cfg["data"]["text_field"]
 
