@@ -14,7 +14,7 @@ from transformers import (
 )
 
 from utils import set_seed
-from data_loader import prepare_datasets
+from dataloader import prepare_datasets
 
 
 def load_cfg(path: str) -> Dict[str, Any]:
