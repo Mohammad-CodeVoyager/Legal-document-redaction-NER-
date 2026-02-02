@@ -3,6 +3,7 @@ transformers>=4.35.0
 datasets>=2.14.0
 accelerate>=0.24.0
 evaluate>=0.4.0
+seqeval>=1.2.2
 scikit-learn
 pandas
 numpy
